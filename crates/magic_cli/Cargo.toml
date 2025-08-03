@@ -1,0 +1,10 @@
+[package]
+name = "magic_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.27", features = ["derive"] }
+tokio = { version = "1.39.0", features = ["full"] }
+reqwest = { version = "0.12.11", features = ["json", "rustls-tls"] }
