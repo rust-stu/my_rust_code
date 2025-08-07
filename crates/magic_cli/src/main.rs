@@ -1,8 +1,10 @@
 use std::str::FromStr;
+use std::io::{self, Read};
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use reqwest::{header, Method, Url};
+use serde_json::{json, Value};
 
 
 #[derive(Parser)]
@@ -15,6 +17,7 @@ struct Args {
 #[derive(Parser, Debug)]
 enum Command {
     Httpie(HttpieArgs),
+    Json(JsonArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -66,6 +69,20 @@ struct HttpiePostArgs {
     content_type: String,
 }
 
+#[derive(Parser, Debug)]
+struct JsonArgs {
+    #[clap(help = "JSON 查询表达式 (类似 jq 语法)")]
+    query: Option<String>,
+    
+    #[clap(short = 'c', long)]
+    #[clap(help = "紧凑输出格式")]
+    compact: bool,
+    
+    #[clap(short = 'o', long)]
+    #[clap(help = "彩色输出")]
+    color: bool,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 struct KvPair {
     k: String,
@@ -87,6 +104,29 @@ impl FromStr for KvPair {
 
 fn parse_kv_pair(s: &str) -> Result<KvPair> {
     s.parse()
+}
+
+fn query_json_path(value: &Value, path: &str) -> Result<Value> {
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut current = value;
+    
+    for part in parts {
+        match current {
+            Value::Object(obj) => {
+                current = obj.get(part)
+                    .ok_or_else(|| anyhow!("Key '{}' not found", part))?;
+            }
+            Value::Array(arr) => {
+                let index: usize = part.parse()
+                    .map_err(|_| anyhow!("Invalid array index: {}", part))?;
+                current = arr.get(index)
+                    .ok_or_else(|| anyhow!("Array index {} out of bounds", index))?;
+            }
+            _ => return Err(anyhow!("Cannot access '{}' on non-object/non-array", part)),
+        }
+    }
+    
+    Ok(current.clone())
 }
 
 #[derive(Debug)]
@@ -172,6 +212,27 @@ async fn main() -> Result<()> {
                         println!("No body data provided");
                     }
                     send_request(&client, "POST", &httpie_post_args.url, body_data).await?;
+                }
+            }
+        }
+        Command::Json(json_args) => {
+            let mut input = String::new();
+            io::stdin().read_to_string(&mut input)?;
+            let value: Value = serde_json::from_str(&input)?;
+
+            if let Some(query) = &json_args.query {
+                // 简单的路径查询实现
+                let result = query_json_path(&value, query)?;
+                if json_args.compact {
+                    println!("{}", serde_json::to_string(&result)?);
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                }
+            } else {
+                if json_args.compact {
+                    println!("{}", serde_json::to_string(&value)?);
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&value)?);
                 }
             }
         }
