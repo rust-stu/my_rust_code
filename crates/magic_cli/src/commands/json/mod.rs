@@ -7,3 +7,6 @@ pub use args::*;
 pub use handler::*;
 pub use query::*;
 pub use validators::*; 
+
+#[cfg(test)]
+mod tests;

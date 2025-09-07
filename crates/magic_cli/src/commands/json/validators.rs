@@ -23,7 +23,7 @@ pub fn validate_json_query(query: &str) -> Result<String> {
 }
 
 /// 检查是否为有效的对象键名
-fn is_valid_object_key(key: &str) -> bool {
+pub(super) fn is_valid_object_key(key: &str) -> bool {
     !key.is_empty() && 
     key.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 } 
